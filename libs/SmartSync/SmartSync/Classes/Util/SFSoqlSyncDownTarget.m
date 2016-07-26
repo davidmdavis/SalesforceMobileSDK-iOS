@@ -57,6 +57,16 @@ NSString * const kSFSoqlSyncTargetQuery = @"query";
     return self;
 }
 
+- (instancetype)initWithModDateFieldName:(NSString *)modDateFieldName {
+    self = [super init];
+    if (self) {
+        self.modificationDateFieldName = modDateFieldName;
+        self.queryType = SFSyncDownTargetQueryTypeSoql;
+        [self addSpecialFieldsIfRequired];
+    }
+    return self;
+}
+
 - (void) addSpecialFieldsIfRequired {
 
     // Inserts the mandatory 'LastModifiedDate' field if it doesn't exist.
@@ -74,6 +84,14 @@ NSString * const kSFSoqlSyncTargetQuery = @"query";
 
 + (SFSoqlSyncDownTarget*) newSyncTarget:(NSString*)query {
     SFSoqlSyncDownTarget* syncTarget = [[SFSoqlSyncDownTarget alloc] init];
+    syncTarget.queryType = SFSyncDownTargetQueryTypeSoql;
+    syncTarget.query = query;
+    [syncTarget addSpecialFieldsIfRequired];
+    return syncTarget;
+}
+
++ (SFSoqlSyncDownTarget*) newSyncTarget:(NSString *)query modDateFieldName:(NSString *)modDateFieldName {
+    SFSoqlSyncDownTarget* syncTarget = [[SFSoqlSyncDownTarget alloc] initWithModDateFieldName:modDateFieldName];
     syncTarget.queryType = SFSyncDownTargetQueryTypeSoql;
     syncTarget.query = query;
     [syncTarget addSpecialFieldsIfRequired];

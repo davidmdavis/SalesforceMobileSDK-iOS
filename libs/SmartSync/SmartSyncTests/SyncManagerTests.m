@@ -177,6 +177,18 @@ static NSException *authException = nil;
 }
 
 /**
+ * Test adding 'Id' and user set modification date (e.g. SystemModstamp) to SOQL query, if they're missing.
+ */
+- (void)testAddMissingFieldstoSOQLTargetWithUserSetModificationDateField
+{
+    NSString *soqlQueryWithSpecialFields = [[[[SFSmartSyncSoqlBuilder withFields:@"Id, SystemModstamp, FirstName, LastName"] from:@"Contact"] limit:10] build];
+    NSString *soqlQueryWithoutSpecialFields = [[[[SFSmartSyncSoqlBuilder withFields:@"FirstName, LastName"] from:@"Contact"] limit:10] build];
+    SFSoqlSyncDownTarget* target = [SFSoqlSyncDownTarget newSyncTarget:soqlQueryWithoutSpecialFields modDateFieldName:@"SystemModstamp"];
+    NSString *targetSoqlQuery = [target query];
+    XCTAssertTrue([soqlQueryWithSpecialFields isEqualToString:targetSoqlQuery], @"SOQL query should contain Id and SystemModstamp fields.");
+}
+
+/**
  * Tests if ghost records are cleaned locally for a SOQL target.
  */
 - (void)testCleanResyncGhostsForSOQLTarget

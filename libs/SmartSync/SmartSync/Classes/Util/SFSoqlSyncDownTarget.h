@@ -44,4 +44,6 @@ extern NSString * const kSFSoqlSyncTargetQuery;
  */
 + (SFSoqlSyncDownTarget*) newSyncTarget:(NSString*)query;
 
++ (SFSoqlSyncDownTarget*) newSyncTarget:(NSString *)query modDateFieldName:(NSString *)modDateFieldName;
+
 @end
