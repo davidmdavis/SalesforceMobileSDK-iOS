@@ -42,7 +42,7 @@ NSString * const kSyncManagerLObjectId = @"id"; // e.g. create response
 char * const kSyncManagerQueue = "com.salesforce.smartsync.manager.syncmanager.QUEUE";
 
 // block type
-typedef void (^SyncUpdateBlock) (NSString* status, NSInteger progress, NSInteger totalSize, long long maxTimeStamp);
+typedef void (^SyncUpdateBlock) (NSString* status, NSInteger progress, NSInteger totalSize, long long maxTimeStamp, NSError* error);
 typedef void (^SyncFailBlock) (NSString* message, NSError* error);
 
 @interface SFSmartSyncSyncManager () <SFAuthenticationManagerDelegate>
@@ -172,10 +172,11 @@ static NSMutableDictionary *syncMgrList = nil;
  */
 - (void) runSync:(SFSyncState*) sync updateBlock:(SFSyncSyncManagerUpdateBlock)updateBlock {
     __weak typeof(self) weakSelf = self;
-    SyncUpdateBlock updateSync = ^(NSString* status, NSInteger progress, NSInteger totalSize, long long maxTimeStamp) {
+    SyncUpdateBlock updateSync = ^(NSString* status, NSInteger progress, NSInteger totalSize, long long maxTimeStamp, NSError* error) {
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (status == nil) status = (progress == 100 ? kSFSyncStateStatusDone : kSFSyncStateStatusRunning);
         sync.status = [SFSyncState syncStatusFromString:status];
+        sync.error = error;
         if (progress>=0)  sync.progress = progress;
         if (totalSize>=0) sync.totalSize = totalSize;
         if (maxTimeStamp>=0) sync.maxTimeStamp = (sync.maxTimeStamp < maxTimeStamp ? maxTimeStamp : sync.maxTimeStamp);
@@ -213,11 +214,11 @@ static NSMutableDictionary *syncMgrList = nil;
 
     SyncFailBlock failSync = ^(NSString* failureMessage, NSError* error) {
         LogSyncError(@"runSync failed:%@ cause:%@ error%@", sync, failureMessage, error);
-        updateSync(kSFSyncStateStatusFailed, kSyncManagerUnchanged, kSyncManagerUnchanged, kSyncManagerUnchanged);
+        updateSync(kSFSyncStateStatusFailed, kSyncManagerUnchanged, kSyncManagerUnchanged, kSyncManagerUnchanged, error);
     };
 
     // Run on background thread
-    updateSync(kSFSyncStateStatusRunning, 0, kSyncManagerUnchanged, kSyncManagerUnchanged);
+    updateSync(kSFSyncStateStatusRunning, 0, kSyncManagerUnchanged, kSyncManagerUnchanged, nil);
     dispatch_async(self.queue, ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         switch (sync.type) {
@@ -298,7 +299,7 @@ static NSMutableDictionary *syncMgrList = nil;
 
     SFSyncDownTargetFetchCompleteBlock startFetchBlock = ^(NSArray* records) {
         totalSize = target.totalSize;
-        updateSync(nil, totalSize == 0 ? 100 : 0, totalSize, kSyncManagerUnchanged);
+        updateSync(nil, totalSize == 0 ? 100 : 0, totalSize, kSyncManagerUnchanged, nil);
         if (totalSize != 0) continueFetchBlockRecurse(records);
     };
 
@@ -315,7 +316,7 @@ static NSMutableDictionary *syncMgrList = nil;
             long long maxTimeStampForFetched = [target getLatestModificationTimeStamp:records];
 
             // Update sync status.
-            updateSync(nil, progress, totalSize, maxTimeStampForFetched);
+            updateSync(nil, progress, totalSize, maxTimeStampForFetched, nil);
 
             // Fetch next records, if any.
             [target continueFetch:self errorBlock:failBlock completeBlock:continueFetchBlockRecurse];
@@ -324,7 +325,7 @@ static NSMutableDictionary *syncMgrList = nil;
             // In some cases (e.g. resync for refresh sync down), the totalSize is just an (over)estimation
             // As a result progress might not get to 100 and therefore a DONE would never be sent
             if (progress < 100) {
-                updateSync(nil, 100, -1 /*unchanged*/, -1 /*unchanged*/);
+                updateSync(nil, 100, -1 /*unchanged*/, -1 /*unchanged*/, nil);
             }
         }
     };
@@ -378,7 +379,7 @@ static NSMutableDictionary *syncMgrList = nil;
     NSArray* dirtyRecordIds = [target getIdsOfRecordsToSyncUp:self soupName:soupName];
     NSUInteger totalSize = dirtyRecordIds.count;
     if (totalSize == 0) {
-        updateSync(nil, 100, totalSize, kSyncManagerUnchanged);
+        updateSync(nil, 100, totalSize, kSyncManagerUnchanged, nil);
         return;
     }
     
@@ -441,7 +442,7 @@ static NSMutableDictionary *syncMgrList = nil;
     SFSyncStateMergeMode mergeMode = sync.mergeMode;
     NSUInteger totalSize = recordIds.count;
     NSUInteger progress = i*100 / totalSize;
-    updateSync(nil, progress, totalSize, kSyncManagerUnchanged);
+    updateSync(nil, progress, totalSize, kSyncManagerUnchanged, nil);
     
     if (progress == 100) {
         // Done
